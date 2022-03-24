@@ -2,8 +2,9 @@ package earth
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
+	"log"
+	"math/rand"
 	"os"
 	"strings"
 )
@@ -15,39 +16,149 @@ const (
 	WEST  = "west"
 )
 
-type City struct {
-	name       string
-	neighbours map[string]string
-	aliens     int
-}
-
+type Connection [3]string
 type Board struct {
-	dic         map[string]City
-	connections [3]string // A - B - direction
+	connections    []Connection
+	alienLocations map[string][]int
 }
 
-func (board Board) cities() []string {
-	var list []string
+func (board *Board) Init(filename string, n int) {
+	board.connections = readConnections(filename)
+	board.distributeAliens(n)
+}
 
-	for k := range board.dic {
-		list = append(list, k)
+func (board *Board) GetConnections() []Connection {
+	return board.connections
+}
+
+func (board *Board) GetAlienLocations() map[string][]int {
+	return board.alienLocations
+}
+
+func (board *Board) Print() {
+	currentCity := ""
+	for _, connection := range board.connections {
+		mainCity := connection[0]
+		desCity := connection[1]
+		direction := connection[2]
+
+		if mainCity != currentCity {
+			currentCity = mainCity
+			fmt.Printf("\n%s", mainCity)
+
+		}
+		fmt.Printf(" %s=%s", direction, desCity)
+	}
+}
+
+func (board *Board) distributeAliens(n int) {
+	alienLocations := map[string][]int{}
+
+	for _, item := range board.connections {
+		alienLocations[item[0]] = make([]int, 0)
+		alienLocations[item[1]] = make([]int, 0)
 	}
 
-	return list
+	var cities []string
+	for name := range alienLocations {
+		cities = append(cities, name)
+	}
+
+	for i := 0; i < n; i++ {
+		randomIdx := rand.Intn(len(cities))
+		randomCity := cities[randomIdx]
+
+		alienLocations[randomCity] = append(alienLocations[randomCity], i)
+	}
+
+	board.alienLocations = alienLocations
 }
 
-func CreateBoard(filename string, n int) (Board, error) {
+func (board *Board) MovingPhase() {
+	connectionsByCity := getConnectionsByCity(board.connections)
+
+	newAlienLocations := map[string][]int{}
+
+	for city, aliensInCity := range board.alienLocations {
+		cityConnections, isConnectionExists := connectionsByCity[city]
+
+		if len(aliensInCity) >= 2 {
+			log.Println("two aliens in a city, forgot to destroy?")
+		}
+
+		if len(aliensInCity) > 0 && isConnectionExists {
+			randomIdx := rand.Intn(len(cityConnections))
+			connectionIdx := connectionsByCity[city][randomIdx]
+
+			desCity := board.connections[connectionIdx].getDestinationCity(city)
+
+			newAlienLocations[desCity] = append(newAlienLocations[desCity], aliensInCity[0])
+		}
+	}
+
+	board.alienLocations = newAlienLocations
+}
+
+func (board *Board) DestoryPhase() {
+	citiesToBeDestoryed := map[string]bool{}
+
+	for city, aliens := range board.alienLocations {
+		if len(aliens) > 1 {
+			log.Printf("The city %s will be destroyed by aliens: %v\n", city, aliens)
+
+			// destory city
+			delete(board.alienLocations, city)
+			citiesToBeDestoryed[city] = true
+		}
+	}
+
+	// destory connection to city
+	newConnections := []Connection{}
+	for _, connection := range board.connections {
+		cityA := connection[0]
+		cityB := connection[1]
+
+		if !citiesToBeDestoryed[cityB] && !citiesToBeDestoryed[cityA] {
+			newConnections = append(newConnections, connection)
+		}
+	}
+
+	board.connections = newConnections
+}
+
+func (c *Connection) getDestinationCity(sourceCity string) string {
+	if c[0] == sourceCity {
+		return c[1]
+	}
+
+	return c[0]
+}
+
+func getConnectionsByCity(connections []Connection) map[string][]int {
+	cityConnections := map[string][]int{}
+	for idx, connection := range connections {
+		cityConnections[connection[0]] = append(cityConnections[connection[0]], idx)
+		cityConnections[connection[1]] = append(cityConnections[connection[1]], idx)
+	}
+
+	return cityConnections
+}
+
+func readConnections(filename string) []Connection {
+	var (
+		text        []string
+		connections []Connection
+	)
+
 	file, err := os.Open(filename)
 
 	if err != nil {
-		fmt.Printf("error opening file: %v\n", err)
-		return nil, err
+		log.Panicf("error opening file: %v\n", err)
 	}
 
 	scanner := bufio.NewScanner(file)
 
 	scanner.Split(bufio.ScanLines)
-	var text []string
 
 	for scanner.Scan() {
 		text = append(text, scanner.Text())
@@ -55,47 +166,29 @@ func CreateBoard(filename string, n int) (Board, error) {
 
 	file.Close()
 
-	board := make(Board)
+	if len(text) == 0 {
+		log.Panic("empty file.. \n")
+	}
 
 	for _, line := range text {
-		var city City
-
 		lineparts := strings.Split(line, " ")
+		cityName := lineparts[0]
 
-		city.name = lineparts[0]
-		city.neighbours = make(map[string]string)
-
-		connections := lineparts[1:]
-
-		for _, connection := range connections {
-			connectionParts := strings.Split(connection, "=")
+		connectionsLine := lineparts[1:]
+		for _, connectionString := range connectionsLine {
+			connectionParts := strings.Split(connectionString, "=")
 			direction := connectionParts[0]
 			neighbourCity := connectionParts[1]
 
 			if direction != NORTH && direction != EAST && direction != SOUTH && direction != WEST {
-				return nil, errors.New("connection should be one of the following values: north south east west")
+				log.Panic("connection should be one of the following values: north south east west")
 			}
 
-			city.neighbours[neighbourCity] = direction
-		}
+			connection := Connection{cityName, neighbourCity, direction}
+			connections = append(connections, connection)
 
-		board[city.name] = city
+		}
 	}
 
-	fmt.Println(board)
-
-	// cityCount := len(board)
-	// cities := board.cities()
-	// log.Printf("c: %v\n", cities)
-
-	// for i := 0; i < n; i++ {
-	// 	randomIdx := rand.Intn(cityCount)
-	// 	randomCity := cities[randomIdx]
-
-	// 	log.Printf("randomCity: %v\n", randomCity)
-
-	// }
-
-	// fill with aliens
-	return board, nil
+	return connections
 }

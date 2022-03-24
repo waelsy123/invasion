@@ -1,8 +1,10 @@
 package main
 
 import (
-	"fmt"
+	"log"
+	"math/rand"
 	"os"
+	"time"
 
 	"github.com/urfave/cli/v2"
 	"github.com/waelsy123/invasion/earth"
@@ -17,6 +19,10 @@ func cmd(args []string) int {
 	var (
 		n        int
 		filename string
+	)
+
+	const (
+		MAX_ITERATION = 10000
 	)
 
 	app := &cli.App{
@@ -41,13 +47,35 @@ func cmd(args []string) int {
 			},
 		},
 		Action: func(c *cli.Context) error {
-			fmt.Printf("input: %d %s\n", n, filename)
+			rand.Seed(time.Now().UnixNano())
 
-			earth.CreateBoard(filename, n)
+			board := earth.Board{}
+			board.Init(filename, n)
+
+			log.Printf("board: %+v\n", board)
+
+			board.DestoryPhase()
+
+			for i := 0; i < MAX_ITERATION; i++ {
+				if len(board.GetConnections()) < 2 || len(board.GetAlienLocations()) < 2 {
+					// no more connections or aliens, exit
+					break
+				}
+
+				board.MovingPhase()
+				board.DestoryPhase()
+			}
+
+			board.Print()
 
 			return nil
 		},
 	}
+
+	// figure out what to factor
+	// write tests and fixtures
+	// write build and ci
+	// write readme
 
 	err := app.Run(args)
 	if err != nil {
