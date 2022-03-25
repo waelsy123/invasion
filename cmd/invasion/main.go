@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/urfave/cli/v2"
-	"github.com/waelsy123/invasion/earth"
+	"github.com/waelsy123/invasion/invasion"
 )
 
 func main() {
@@ -49,14 +49,15 @@ func cmd(args []string) int {
 		Action: func(c *cli.Context) error {
 			rand.Seed(time.Now().UnixNano())
 
-			board := earth.Board{}
+			board := invasion.Board{}
 			board.Init(filename, n)
 
-			log.Printf("board: %+v\n", board)
+			// log.Printf("board: %+v\n", board)
 
 			board.DestoryPhase()
 
 			for i := 0; i < MAX_ITERATION; i++ {
+				log.Printf("i: %v\n", i)
 				if len(board.GetConnections()) < 2 || len(board.GetAlienLocations()) < 2 {
 					// no more connections or aliens, exit
 					break
