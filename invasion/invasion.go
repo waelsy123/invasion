@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"os"
 	"strings"
+	"time"
 )
 
 const (
@@ -74,7 +75,14 @@ func (board *Board) distributeAliens(n int) {
 	board.alienLocations = alienLocations
 }
 
+func TimeTrack(start time.Time, name string) {
+	elapsed := time.Since(start)
+	log.Printf("%s took %s", name, elapsed)
+}
+
 func (board *Board) MovingPhase() {
+	defer TimeTrack(time.Now(), "Timer")
+
 	connectionsByCity := getConnectionsByCity(board.connections)
 
 	newAlienLocations := map[string][]int{}
@@ -96,6 +104,8 @@ func (board *Board) MovingPhase() {
 }
 
 func (board *Board) DestoryPhase() {
+	defer TimeTrack(time.Now(), "DestoryPhase")
+
 	citiesToBeDestoryed := map[string]bool{}
 
 	for city, aliens := range board.alienLocations {
@@ -131,6 +141,8 @@ func (c *Connection) getDestinationCity(sourceCity string) string {
 }
 
 func getConnectionsByCity(connections []Connection) map[string][]int {
+	defer TimeTrack(time.Now(), "getConnectionsByCity")
+
 	cityConnections := map[string][]int{}
 	for idx, connection := range connections {
 		cityConnections[connection[0]] = append(cityConnections[connection[0]], idx)
